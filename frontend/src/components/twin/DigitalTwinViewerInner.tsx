@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect, useCallback, useState } from "react";
 import { useRealtime } from "@/lib/realtime";
 
 interface TwinRiskScores {
@@ -20,6 +20,8 @@ export default function DigitalTwinViewerInner({
   const { vitals, twinState, anomalies } = useRealtime();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animFrameRef = useRef<number>(0);
+  const particlesRef = useRef<{ x: number; y: number; z: number }[]>([]);
+  const [particlesInitialized, setParticlesInitialized] = useState(false);
 
   const activeRisks: TwinRiskScores = (simulatedRisks ||
     twinState?.risk_scores || {
@@ -44,20 +46,22 @@ export default function DigitalTwinViewerInner({
   const glowColor =
     riskScore < 0.3 ? "#4c1d95" : riskScore < 0.6 ? "#78350f" : "#881337";
 
-  // Particle positions (stable, computed once per mount)
-  const particlesRef = useRef<{ x: number; y: number; z: number }[]>([]);
-  if (particlesRef.current.length === 0) {
+  // Initialize particles once on mount (deterministic, no Math.random during render)
+  useEffect(() => {
+    if (particlesInitialized) return;
     for (let i = 0; i < 220; i++) {
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.acos(2 * Math.random() - 1);
-      const r = 0.72 + Math.random() * 0.32;
+      // Deterministic pseudo-random using index-based hashing
+      const theta = ((i * 137.508) % 360) * (Math.PI / 180);
+      const phi = Math.acos(1 - 2 * ((i * 79.123) % 100) / 100);
+      const r = 0.72 + ((i * 53.711) % 100) / 100 * 0.32;
       particlesRef.current.push({
         x: r * Math.sin(phi) * Math.cos(theta),
         y: r * Math.cos(phi),
         z: r * Math.sin(phi) * Math.sin(theta),
       });
     }
-  }
+    setParticlesInitialized(true);
+  }, [particlesInitialized]);
 
   const draw = useCallback(
     (t: number) => {

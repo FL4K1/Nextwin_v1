@@ -43,10 +43,19 @@ async function apiFetch<T>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${base}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${base}${endpoint}`, {
+      ...options,
+      headers,
+    });
+  } catch (err) {
+    throw new ApiError(
+      0,
+      `Network error: unable to reach ${base}${endpoint}. Ensure the backend server is running.`,
+      { originalError: err instanceof Error ? err.message : String(err) }
+    );
+  }
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
