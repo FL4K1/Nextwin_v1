@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.utils import timezone
 from datetime import timedelta
+import random
 
 from .models import Vital, DigitalTwinState
 from .serializers import VitalSerializer, VitalCreateSerializer, DigitalTwinSerializer
@@ -46,11 +47,26 @@ class VitalLatestView(APIView):
         for metric in metrics:
             vital = Vital.objects.filter(
                 patient_id=pid, metric_type=metric
-            ).first()
+            ).order_by('-recorded_at').first()
             if vital:
                 latest.append(VitalSerializer(vital).data)
 
         return Response(latest)
+
+
+class VitalTimelineView(APIView):
+    """Get timeline of vitals for the last N hours."""
+
+    def get(self, request, patient_id=None):
+        pid = patient_id or request.user.id
+        hours = int(request.query_params.get('hours', 24))
+        since = timezone.now() - timedelta(hours=hours)
+
+        vitals = Vital.objects.filter(
+            patient_id=pid, recorded_at__gte=since
+        ).order_by('recorded_at')
+
+        return Response(VitalSerializer(vitals, many=True).data)
 
 
 class DigitalTwinView(APIView):
@@ -74,11 +90,23 @@ class DigitalTwinSimulateView(APIView):
 
     def post(self, request, patient_id=None):
         pid = patient_id or request.user.id
-        scenario = request.data.get('scenario', {})
+        scenario = request.data  # scenario is the full dict of boolean flags
 
-        # For MVP: simple rule-based simulation
-        results = _simulate_scenario(pid, scenario)
+        # Get current twin state for original risks
+        twin = DigitalTwinState.objects.filter(patient_id=pid).first()
+        original_risks = twin.risk_scores if twin else _generate_mock_risk_scores()
+
+        results = _simulate_scenario(pid, scenario, original_risks)
         return Response(results)
+
+
+class VoiceLogView(APIView):
+    """Accept voice symptom log and return acknowledgment."""
+
+    def post(self, request):
+        text = request.data.get('text', '')
+        # For MVP: just acknowledge the log
+        return Response({'status': 'logged', 'text': text, 'acknowledged': True})
 
 
 class GoogleFitConnectView(APIView):
@@ -194,35 +222,64 @@ def _generate_mock_predictions():
     ]
 
 
-def _simulate_scenario(patient_id, scenario):
+def _simulate_scenario(patient_id, scenario, original_risks=None):
     """Simple rule-based what-if simulation for MVP."""
-    import random
+    if original_risks is None:
+        original_risks = _generate_mock_risk_scores()
 
-    base_risks = _generate_mock_risk_scores()
+    adjusted = dict(original_risks)
 
     # Apply scenario modifiers
     if scenario.get('increase_exercise'):
-        base_risks['cardiac'] *= 0.8
-        base_risks['diabetes'] *= 0.7
-        base_risks['overall_health'] = min(1.0, base_risks['overall_health'] * 1.1)
+        adjusted['cardiac'] = adjusted.get('cardiac', 0.2) * 0.8
+        adjusted['diabetes'] = adjusted.get('diabetes', 0.3) * 0.7
+        adjusted['overall_health'] = min(1.0, adjusted.get('overall_health', 0.7) * 1.1)
 
     if scenario.get('reduce_sodium'):
-        base_risks['hypertension'] *= 0.75
-        base_risks['stroke'] *= 0.85
+        adjusted['hypertension'] = adjusted.get('hypertension', 0.3) * 0.75
+        adjusted['stroke'] = adjusted.get('stroke', 0.1) * 0.85
 
     if scenario.get('improve_sleep'):
-        base_risks['cardiac'] *= 0.9
-        base_risks['overall_health'] = min(1.0, base_risks['overall_health'] * 1.05)
+        adjusted['cardiac'] = adjusted.get('cardiac', 0.2) * 0.9
+        adjusted['overall_health'] = min(1.0, adjusted.get('overall_health', 0.7) * 1.05)
+
+    if scenario.get('quit_smoking'):
+        adjusted['cardiac'] = adjusted.get('cardiac', 0.2) * 0.75
+        adjusted['respiratory'] = adjusted.get('respiratory', 0.1) * 0.6
+
+    if scenario.get('medication_adherence'):
+        for k in adjusted:
+            if k != 'overall_health':
+                adjusted[k] = adjusted[k] * 0.85
+
+    # Compute metric deltas (physiological projections)
+    metric_deltas = {
+        'heart_rate': round(-2.5 if scenario.get('increase_exercise') else 0.5, 1),
+        'blood_pressure': round(-5.0 if scenario.get('reduce_sodium') else 0.0, 1),
+        'sleep_quality': round(+1.2 if scenario.get('improve_sleep') else -0.2, 1),
+    }
+
+    clinical_summaries = []
+    if scenario.get('increase_exercise'):
+        clinical_summaries.append('Regular cardio exercise 30 min/day can reduce cardiac risk by ~20%.')
+    if scenario.get('reduce_sodium'):
+        clinical_summaries.append('Reducing sodium intake may lower hypertension risk by ~25%.')
+    if scenario.get('improve_sleep'):
+        clinical_summaries.append('Consistent sleep schedule can boost overall health score by 5-10%.')
+    if scenario.get('quit_smoking'):
+        clinical_summaries.append('Cessation support programs reduce cardiac and respiratory risk significantly.')
+    if scenario.get('medication_adherence'):
+        clinical_summaries.append('Strict medication adherence can reduce most risk categories by ~15%.')
+    if not clinical_summaries:
+        clinical_summaries.append('Select interventions above to generate personalized projections.')
 
     return {
+        'original_risks': {k: round(v, 3) for k, v in original_risks.items()},
+        'adjusted_risks': {k: round(v, 3) for k, v in adjusted.items()},
+        'metric_deltas': metric_deltas,
+        'clinical_summary': clinical_summaries,
         'scenario': scenario,
-        'adjusted_risk_scores': {k: round(v, 3) for k, v in base_risks.items()},
-        'recommendations': [
-            'Regular cardio exercise 30 min/day can reduce cardiac risk by 20%',
-            'Reducing sodium intake can lower hypertension risk by 25%',
-            'Improving sleep quality can boost overall health score by 5-10%',
-        ],
-        'model_version': 'rule-based-v0.1',
+        'model_version': 'rule-based-v0.2',
     }
 
 

@@ -99,7 +99,7 @@ function OverviewDashboard() {
 
       {/* Timeline + Alerts + Predictions */}
       <div className="grid grid-cols-12 gap-6">
-        <motion.div className="col-span-12 lg:col-span-7" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+        <motion.div className="col-span-12 lg:col-span-7 h-[400px]" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
           <TimelineChart />
         </motion.div>
         <div className="col-span-12 lg:col-span-5 space-y-6">

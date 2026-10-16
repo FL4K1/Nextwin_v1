@@ -23,6 +23,7 @@ export interface VitalReading {
   unit: string;
   recorded_at: string;
   is_anomaly: boolean;
+  data_source?: string;
   metadata?: Record<string, unknown>;
   synced?: boolean;
 }

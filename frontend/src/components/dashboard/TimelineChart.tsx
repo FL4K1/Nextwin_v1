@@ -113,7 +113,7 @@ export default function TimelineChart() {
       </div>
 
       <div className="flex-1 w-full min-h-[220px]">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height={350}>
           <AreaChart data={data} margin={{ top: 10, right: 10, bottom: 0, left: -20 }}>
             <defs>
               <linearGradient id="hrGradient" x1="0" y1="0" x2="0" y2="1">

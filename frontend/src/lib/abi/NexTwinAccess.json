@@ -1,0 +1,52 @@
+[
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "address", "name": "patient", "type": "address" },
+      { "indexed": true, "internalType": "address", "name": "grantee", "type": "address" },
+      { "indexed": false, "internalType": "bytes32", "name": "dataScope", "type": "bytes32" },
+      { "indexed": false, "internalType": "uint256", "name": "expiresAt", "type": "uint256" }
+    ],
+    "name": "AccessGranted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "address", "name": "patient", "type": "address" },
+      { "indexed": true, "internalType": "address", "name": "grantee", "type": "address" }
+    ],
+    "name": "AccessRevoked",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "grantee", "type": "address" },
+      { "internalType": "bytes32", "name": "dataScope", "type": "bytes32" },
+      { "internalType": "uint256", "name": "durationSeconds", "type": "uint256" }
+    ],
+    "name": "grantAccess",
+    "outputs": [],
+    "stateMutability": "external",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "grantee", "type": "address" }
+    ],
+    "name": "revokeAccess",
+    "outputs": [],
+    "stateMutability": "external",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "patient", "type": "address" },
+      { "internalType": "address", "name": "grantee", "type": "address" }
+    ],
+    "name": "hasAccess",
+    "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

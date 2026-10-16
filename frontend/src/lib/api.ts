@@ -254,6 +254,7 @@ export interface SimulationResponse {
   metric_deltas: Record<string, number>;
   clinical_summary: string[];
   scenario: Record<string, boolean>;
+  model_version?: string;
 }
 
 export const alertsAPI = {
@@ -377,10 +378,10 @@ export const vitalsSocket = new VitalsWebSocket();
 
 export const simulationAPI = {
   run: (patientId: string, scenario: Record<string, boolean>) =>
-    apiFetch<SimulationResponse>(`/simulate?patient_id=${patientId}`, {
+    apiFetch<SimulationResponse>(`/patients/twin/simulate/`, {
       method: "POST",
       body: JSON.stringify(scenario),
-    }, AI_BASE),
+    }),
 };
 
 // ─── Geospatial API (IDF Step 12) ───────────────────────────

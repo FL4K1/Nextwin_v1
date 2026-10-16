@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { ShieldCheck, TrendingDown, TrendingUp, Cpu } from "lucide-react";
 import { useRealtime } from "@/lib/realtime";
+import { useEffect, useState } from "react";
 
 function getRiskColor(value: number) {
   if (value < 0.15) return "#10b981";
@@ -20,7 +21,11 @@ function getRiskLabel(value: number) {
 
 export default function RiskScorePanel() {
   const { twinState, isSimulated } = useRealtime();
+  const [mounted, setMounted] = useState(false);
 
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Fallback data if twinState is null
   const riskScoresData = twinState?.risk_scores || {
@@ -31,10 +36,11 @@ export default function RiskScorePanel() {
     Stroke: 0.05,
   };
 
-  const riskScores = Object.entries(riskScoresData).map(([label, value]) => ({
+  const riskScores = Object.entries(riskScoresData).map(([label, value], index) => ({
     label,
     value: value as number,
-    trend: (Math.random() - 0.5) * 0.1, // Mock trend for now
+    // Use deterministic trend to avoid hydration mismatch
+    trend: mounted ? (Math.random() - 0.5) * 0.1 : 0,
   }));
 
   const overallHealth = 1 - (Object.values(riskScoresData).reduce((a, b) => a + (b as number), 0) / Object.keys(riskScoresData).length);
@@ -109,11 +115,11 @@ export default function RiskScorePanel() {
                 <span className="text-xs font-mono text-slate-500 font-bold">
                   {(risk.value * 100).toFixed(0)}%
                 </span>
-                {risk.trend > 0 ? (
+                {mounted && risk.trend > 0 ? (
                   <TrendingUp size={12} className="text-rose-500 drop-shadow-[0_0_8px_rgba(244,63,94,0.4)]" />
-                ) : (
+                ) : mounted && risk.trend < 0 ? (
                   <TrendingDown size={12} className="text-emerald-500 drop-shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
-                )}
+                ) : null}
               </div>
             </div>
             <div className="risk-bar h-1 bg-white/[0.03] rounded-full overflow-hidden">

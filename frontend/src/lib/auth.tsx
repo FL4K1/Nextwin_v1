@@ -2,8 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { User } from "@supabase/supabase-js";
-import { sbAuth, sbProfiles } from "./supabase";
+import { apiAuth, apiProfiles } from "./apiService";
 
 interface Profile {
   id: string;
@@ -17,7 +16,7 @@ interface Profile {
 }
 
 interface AuthContextType {
-  user: User | null;
+  user: any | null;
   profile: Profile | null;
   loading: boolean;
   login: (credentials: { email: string; password: string }) => Promise<void>;
@@ -31,79 +30,109 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const publicPaths = ["/login", "/register"];
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<any | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
 
   const loadProfile = async (userId: string) => {
-    const { data } = await sbProfiles.get(userId);
-    if (data) setProfile(data as Profile);
+    try {
+      const { data } = await apiProfiles.get(userId);
+      if (data) setProfile(data as Profile);
+    } catch (error) {
+      console.error("Failed to load profile:", error);
+    }
   };
 
+  // BYPASS VERSION FOR DEVELOPMENT
   useEffect(() => {
-    // Initial session check
-    sbAuth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        loadProfile(session.user.id).finally(() => setLoading(false));
-      } else {
-        setLoading(false);
-        if (!publicPaths.includes(pathname)) router.push("/login");
-      }
-    });
-
-    // Listen for auth changes
-    const { data: { subscription } } = sbAuth.onAuthStateChange(async (_event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        loadProfile(session.user.id);
-        if (publicPaths.includes(pathname)) router.push("/");
-      } else {
-        setProfile(null);
-        if (!publicPaths.includes(pathname)) router.push("/login");
-      }
-    });
-
-    return () => subscription.unsubscribe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    // Bypass authentication for development - always show as authenticated
+    setLoading(false);
+    
+    // Create a mock user object matching Supabase User interface
+    const mockUser = {
+      id: "dev-user-id-123",
+      email: "dev@example.com",
+    };
+    
+    setUser(mockUser);
+    
+    // Load mock profile data
+    const mockProfile: Profile = {
+      id: "dev-user-id-123",
+      username: "devuser",
+      email: "dev@example.com",
+      first_name: "Dev",
+      last_name: "User",
+      role: "patient",
+      did_identifier: undefined,
+      wallet_address: undefined,
+    };
+    
+    setProfile(mockProfile);
+    
+    // No redirect needed - stay on current page
+  }, []); // Empty deps means runs once on mount
+  // END BYPASS VERSION
 
   const login = async ({ email, password }: { email: string; password: string }) => {
     setLoading(true);
     try {
-      const { error } = await sbAuth.signIn(email, password);
-      if (error) throw new Error(error.message);
+      const { error } = await apiAuth.signIn(email, password);
+      if (error) throw new Error(error);
+      
+      // After successful login, get the user session
+      const { data: { session } } = await apiAuth.getSession();
+      if (session?.user) {
+        setUser(session.user);
+        await loadProfile(session.user.id);
+      }
+    } catch (error) {
+      throw error;
     } finally {
       setLoading(false);
     }
   };
 
-  const register = async (data: {
-    email: string; password: string; username: string;
-    first_name?: string; last_name?: string; role?: string;
+  const register = async (data: { 
+    email: string; 
+    password: string; 
+    username: string; 
+    first_name?: string; 
+    last_name?: string; 
+    role?: string 
   }) => {
     setLoading(true);
     try {
-      const { error } = await sbAuth.signUp(data.email, data.password, {
-        username: data.username,
-        first_name: data.first_name,
-        last_name: data.last_name,
-        role: data.role ?? "patient",
+      const { error } = await apiAuth.signUp(data.email, data.password, {
+        data: {
+          username: data.username,
+          first_name: data.first_name,
+          last_name: data.last_name,
+          role: data.role ?? "patient",
+        }
       });
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(error);
+      
+      // After successful registration, redirect to login
       router.push("/login");
+    } catch (error) {
+      throw error;
     } finally {
       setLoading(false);
     }
   };
 
   const logout = async () => {
-    await sbAuth.signOut();
-    setUser(null);
-    setProfile(null);
-    router.push("/login");
+    try {
+      const { error } = await apiAuth.signOut();
+      if (error) throw new Error(error);
+    } finally {
+      setUser(null);
+      setProfile(null);
+      router.push("/login");
+    }
   };
 
   return (
@@ -119,6 +148,4 @@ export function useAuth() {
   return ctx;
 }
 
-// Legacy compatibility — existing components call useAuth().user.username etc.
-// They should migrate to profile, but we expose a merged shape for now.
 export type { Profile };
