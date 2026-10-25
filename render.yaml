@@ -1,26 +1,32 @@
 services:
   - type: web
-    name: medgenie-api
+    name: nexttwin-api
     env: python
+    rootDir: backend
     buildCommand: "pip install -r requirements.txt && python manage.py migrate"
-    startCommand: "gunicorn backend.wsgi:application"
+    startCommand: "daphne -b 0.0.0.0 -p $PORT medgenie.asgi:application"
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: medgenie-db
+          name: nexttwin-db
           property: connectionString
-      - key: DEBUG
+      - key: DJANGO_DEBUG
         value: "False"
+      - key: DJANGO_ALLOWED_HOSTS
+        value: "localhost,127.0.0.1,.onrender.com"
+      - key: AI_ENGINE_URL
+        value: "http://nexttwin-ai-engine:10000"
 
   - type: web
-    name: medgenie-ai-engine
+    name: nexttwin-ai-engine
     env: python
-    buildCommand: "pip install -r ai_engine/requirements.txt"
-    startCommand: "uvicorn ai_engine.main:app --host 0.0.0.0 --port 10000"
+    rootDir: ai_engine
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn server:app --host 0.0.0.0 --port $PORT"
     envVars:
-      - key: MODEL_QUANTIZATION
-        value: "true"
+      - key: AI_ENGINE_PORT
+        value: "10000"
 
 databases:
-  - name: medgenie-db
+  - name: nexttwin-db
     plan: free

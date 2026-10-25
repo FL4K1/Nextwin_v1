@@ -3,7 +3,7 @@
   "framework": "nextjs",
   "regions": ["cle1"],
   "env": {
-    "NEXT_PUBLIC_API_URL": "https://medgenie-api.onrender.com",
-    "NEXT_PUBLIC_AI_ENGINE_URL": "https://medgenie-ai.onrender.com"
+    "NEXT_PUBLIC_API_URL": "https://nexttwin-api.onrender.com",
+    "NEXT_PUBLIC_AI_ENGINE_URL": "https://nexttwin-ai.onrender.com"
   }
 }

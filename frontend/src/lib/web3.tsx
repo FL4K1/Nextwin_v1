@@ -35,5 +35,7 @@ export function Web3Provider({ children }: { children: ReactNode }) {
 }
 
 // Contract Constants
-export const MEDGENIE_ACCESS_ADDRESS = '0x8b5cf68b5cf68b5cf68b5cf68b5cf68b5cf68b5c'; // Placeholder
-export { default as MedGenieABI } from './abi/MedGenieAccess.json';
+export const NEXTWIN_ACCESS_ADDRESS = '0x8b5cf68b5cf68b5cf68b5cf68b5cf68b5cf68b5c'; // Placeholder
+export { default as NexTwinABI } from './abi/NexTwinAccess.json';
+export const MEDGENIE_ACCESS_ADDRESS = NEXTWIN_ACCESS_ADDRESS;
+export { default as MedGenieABI } from './abi/NexTwinAccess.json';

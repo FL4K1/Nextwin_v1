@@ -1,44 +1,85 @@
 // API Configuration and Fetch Helpers
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
-const AI_BASE = process.env.NEXT_PUBLIC_AI_URL || "http://localhost:8001";
+const AI_BASE = process.env.NEXT_PUBLIC_AI_URL || "http://localhost:8100";
 const WS_BASE = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000/ws";
 
 // ─── Auth Token Management ─────────────────────────────────
 let accessToken: string | null = null;
+let refreshToken: string | null = null;
+
+export function setTokens(access: string, refresh?: string) {
+  accessToken = access;
+  if (typeof window !== "undefined") {
+    localStorage.setItem("nexttwin_token", access);
+    localStorage.removeItem("nexttwin_token");
+    localStorage.removeItem("medgenie_token");
+    if (refresh) {
+      refreshToken = refresh;
+      localStorage.setItem("nexttwin_refresh_token", refresh);
+      localStorage.removeItem("nexttwin_refresh_token");
+    localStorage.removeItem("medgenie_refresh_token");
+    }
+  }
+}
 
 export function setToken(token: string) {
-  accessToken = token;
-  if (typeof window !== "undefined") {
-    localStorage.setItem("medgenie_token", token);
-  }
+  setTokens(token);
 }
 
 export function getToken(): string | null {
   if (accessToken) return accessToken;
   if (typeof window !== "undefined") {
-    return localStorage.getItem("medgenie_token");
+    return localStorage.getItem("nexttwin_token") || localStorage.getItem("medgenie_token");
+  }
+  return null;
+}
+
+export function getRefreshToken(): string | null {
+  if (refreshToken) return refreshToken;
+  if (typeof window !== "undefined") {
+    return localStorage.getItem("nexttwin_refresh_token") || localStorage.getItem("medgenie_refresh_token");
   }
   return null;
 }
 
 export function clearToken() {
   accessToken = null;
+  refreshToken = null;
   if (typeof window !== "undefined") {
+    localStorage.removeItem("nexttwin_token");
     localStorage.removeItem("medgenie_token");
+    localStorage.removeItem("nexttwin_refresh_token");
+    localStorage.removeItem("medgenie_refresh_token");
   }
 }
 
-// ─── Fetch Wrapper ──────────────────────────────────────────
+// ─── Fetch Wrapper with Automatic Token Refresh ─────────────
+let isRefreshing = false;
+let refreshSubscribers: ((token: string) => void)[] = [];
+
+function onTokenRefreshed(newToken: string) {
+  refreshSubscribers.forEach((callback) => callback(newToken));
+  refreshSubscribers = [];
+}
+
 async function apiFetch<T>(
   endpoint: string,
   options: RequestInit = {},
   base = API_BASE
 ): Promise<T> {
   const token = getToken();
+  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
+
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    ...(!isFormData ? { "Content-Type": "application/json" } : {}),
     ...(options.headers as Record<string, string>),
   };
+
+  // Ensure Content-Type is never manually forced when sending FormData so browser creates the boundary
+  if (isFormData && headers["Content-Type"]) {
+    delete headers["Content-Type"];
+  }
+
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
@@ -55,6 +96,89 @@ async function apiFetch<T>(
       `Network error: unable to reach ${base}${endpoint}. Ensure the backend server is running.`,
       { originalError: err instanceof Error ? err.message : String(err) }
     );
+  }
+
+  // Handle 401 Unauthorized — attempt token refresh if token was expired
+  if (response.status === 401 && !endpoint.includes("/auth/")) {
+    const errorData = await response.json().catch(() => ({}));
+    const isTokenNotValid =
+      errorData.code === "token_not_valid" ||
+      (typeof errorData.detail === "string" &&
+        (errorData.detail.toLowerCase().includes("token") || errorData.detail.toLowerCase().includes("not valid")));
+
+    const storedRefresh = getRefreshToken();
+
+    if (isTokenNotValid && storedRefresh) {
+      if (!isRefreshing) {
+        isRefreshing = true;
+        try {
+          const refreshRes = await fetch(`${base}/auth/refresh/`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ refresh: storedRefresh }),
+          });
+
+          if (refreshRes.ok) {
+            const refreshData = await refreshRes.json();
+            if (refreshData.access) {
+              setTokens(refreshData.access, refreshData.refresh || storedRefresh);
+              onTokenRefreshed(refreshData.access);
+              isRefreshing = false;
+
+              // Retry current request
+              const retryHeaders = {
+                ...headers,
+                Authorization: `Bearer ${refreshData.access}`,
+              };
+              const retryResponse = await fetch(`${base}${endpoint}`, {
+                ...options,
+                headers: retryHeaders,
+              });
+              if (!retryResponse.ok) {
+                const retryErr = await retryResponse.json().catch(() => ({}));
+                throw new ApiError(retryResponse.status, retryErr.detail || retryErr.message || retryResponse.statusText, retryErr);
+              }
+              return retryResponse.json();
+            }
+          }
+        } catch (e) {
+          console.warn("Silent token refresh failed:", e);
+        } finally {
+          isRefreshing = false;
+        }
+      } else {
+        // Wait for ongoing refresh to complete
+        return new Promise<T>((resolve, reject) => {
+          refreshSubscribers.push(async (newToken: string) => {
+            try {
+              const retryHeaders = {
+                ...headers,
+                Authorization: `Bearer ${newToken}`,
+              };
+              const retryResponse = await fetch(`${base}${endpoint}`, {
+                ...options,
+                headers: retryHeaders,
+              });
+              if (!retryResponse.ok) {
+                const retryErr = await retryResponse.json().catch(() => ({}));
+                reject(new ApiError(retryResponse.status, retryErr.detail || retryErr.message || retryResponse.statusText, retryErr));
+              } else {
+                resolve(retryResponse.json());
+              }
+            } catch (err) {
+              reject(err);
+            }
+          });
+        });
+      }
+
+      // If refresh failed completely, clear invalid tokens
+      clearToken();
+    } else {
+      clearToken();
+    }
+
+    throw new ApiError(response.status, errorData.detail || errorData.message || response.statusText, errorData);
   }
 
   if (!response.ok) {
@@ -81,6 +205,7 @@ export class ApiError extends Error {
 export interface LoginResponse {
   access: string;
   refresh: string;
+  user?: UserProfile;
 }
 
 export interface UserProfile {
@@ -92,20 +217,31 @@ export interface UserProfile {
   role: "patient" | "doctor" | "admin";
   did_identifier?: string;
   wallet_address?: string;
+  avatar_url?: string;
 }
 
 export const authAPI = {
-  login: (credentials: { username: string; password: string }) =>
-    apiFetch<LoginResponse>("/auth/login/", {
+  login: async (credentials: { username?: string; email?: string; password: string }) => {
+    const res = await apiFetch<LoginResponse>("/auth/login/", {
       method: "POST",
       body: JSON.stringify(credentials),
-    }),
+    });
+    if (res.access) {
+      setTokens(res.access, res.refresh);
+    }
+    return res;
+  },
 
-  register: (data: { username: string; email: string; password: string; role?: string }) =>
-    apiFetch<UserProfile>("/auth/register/", {
+  register: async (data: { username: string; email: string; password: string; role?: string; full_name?: string }) => {
+    const res = await apiFetch<{ user: UserProfile; access?: string; refresh?: string; message: string }>("/auth/register/", {
       method: "POST",
       body: JSON.stringify(data),
-    }),
+    });
+    if (res.access) {
+      setTokens(res.access, res.refresh);
+    }
+    return res;
+  },
 
   getProfile: () => apiFetch<UserProfile>("/auth/me/"),
 
@@ -190,7 +326,14 @@ export interface MedicalRecord {
   record_type: string;
   description: string;
   file_url: string;
-  ipfs_cid: string;
+  file_name?: string;
+  file_size?: number;
+  mime_type?: string;
+  access_type?: string;
+  ipfs_cid?: string;
+  ipfs_hash?: string;
+  blockchain_tx?: string;
+  cloudinary_public_id?: string;
   created_at: string;
   provider: string;
   is_encrypted: boolean;
@@ -207,13 +350,29 @@ export interface Consultation {
 }
 
 export const recordsAPI = {
-  list: () => apiFetch<{ results: MedicalRecord[] }>("/patients/records/"),
+  list: (recordType?: string) => {
+    const query = recordType && recordType !== "all" ? `?record_type=${encodeURIComponent(recordType)}` : "";
+    return apiFetch<{ results: MedicalRecord[] } | MedicalRecord[]>(`/patients/records/${query}`);
+  },
   get: (id: string) => apiFetch<MedicalRecord>(`/records/${id}/`),
   upload: (formData: FormData) =>
     apiFetch<MedicalRecord>("/patients/records/", {
       method: "POST",
       body: formData,
-      headers: {},
+    }),
+  delete: (id: string) =>
+    apiFetch<void>(`/records/${id}/`, {
+      method: "DELETE",
+    }),
+  getAccessUrl: (id: string) =>
+    apiFetch<{ access_url: string; content_url: string; download_url: string; expires_in: number; file_name: string; mime_type: string }>(`/records/${id}/access/`),
+};
+
+export const profileAPI = {
+  uploadAvatar: (formData: FormData) =>
+    apiFetch<{ message: string; avatar_url: string; user: Record<string, unknown> }>("/auth/profile/avatar/", {
+      method: "POST",
+      body: formData,
     }),
 };
 

@@ -13,7 +13,7 @@ import {
   useWaitForTransactionReceipt 
 } from 'wagmi';
 import WalletConnectButton from "@/components/common/WalletConnectButton";
-import { MEDGENIE_ACCESS_ADDRESS, MedGenieABI } from "@/lib/web3";
+import { NEXTWIN_ACCESS_ADDRESS, NexTwinABI } from "@/lib/web3";
 
 const ipfsRecords = [
   { hash: "QmX7d...8Kf2", type: "CBC Report", encrypted: true, size: "2.4 KB", date: "Mar 28" },
@@ -34,8 +34,8 @@ export default function Web3VaultView() {
     if (!granteeAddress) return;
     
     writeContract({
-      address: MEDGENIE_ACCESS_ADDRESS as `0x${string}`,
-      abi: MedGenieABI,
+      address: NEXTWIN_ACCESS_ADDRESS as `0x${string}`,
+      abi: NexTwinABI,
       functionName: 'grantAccess',
       args: [
         granteeAddress as `0x${string}`, 
@@ -47,8 +47,8 @@ export default function Web3VaultView() {
 
   const handleRevoke = (grantee: string) => {
     writeContract({
-      address: MEDGENIE_ACCESS_ADDRESS as `0x${string}`,
-      abi: MedGenieABI,
+      address: NEXTWIN_ACCESS_ADDRESS as `0x${string}`,
+      abi: NexTwinABI,
       functionName: 'revokeAccess',
       args: [grantee as `0x${string}`],
     });
