@@ -26,6 +26,15 @@ class MedicalRecord(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='created_records'
     )
     file_data = models.JSONField(default=dict, blank=True, help_text='Encrypted local file data for MVP')
+    cloudinary_public_id = models.CharField(max_length=255, blank=True, default='', help_text='Cloudinary asset public ID')
+    cloudinary_resource_type = models.CharField(max_length=50, blank=True, default='auto', help_text='image or raw')
+    file_name = models.CharField(max_length=255, blank=True, default='', help_text='Original file name')
+    file_size = models.PositiveIntegerField(null=True, blank=True, help_text='File size in bytes')
+    mime_type = models.CharField(max_length=100, blank=True, default='', help_text='File MIME type')
+    access_type = models.CharField(max_length=20, default='authenticated', choices=[('authenticated', 'Authenticated'), ('upload', 'Public')])
+    consultation = models.ForeignKey(
+        'Consultation', on_delete=models.SET_NULL, null=True, blank=True, related_name='attachments'
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -38,11 +38,11 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
       <div className="h-16 flex items-center px-4 lg:px-5 border-b border-white/[0.04]">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-500 to-violet-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
-            <span className="text-white font-bold text-sm">MG</span>
+            <span className="text-white font-bold text-sm">NT</span>
           </div>
           <div className="hidden lg:block">
             <h1 className="text-sm font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-violet-400">
-              MedGenie
+              NexTwin
             </h1>
             <p className="text-[10px] text-slate-600">Digital Twin v0.1</p>
           </div>

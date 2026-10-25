@@ -3,7 +3,7 @@
 
 import { openDB } from 'idb';
 
-const DB_NAME = 'medgenie-db';
+const DB_NAME = 'nexttwin-db';
 const STORE_SYNC_QUEUE = 'sync_queue';
 const API_BASE = 'http://localhost:8000/api'; // Fallback to localhost if ENV not injected
 
@@ -54,7 +54,7 @@ async function syncHealthData() {
           console.log(`[SW] Successfully synced ${item.store} record`);
           
           // Show a notification to the user
-          (self as any).registration.showNotification('MedGenie Data Synced', {
+          (self as any).registration.showNotification('NexTwin Data Synced', {
             body: `Your offline ${item.store} data has been securely uploaded to your Digital Twin.`,
             icon: '/icons/icon-192x192.png',
           });
@@ -71,7 +71,7 @@ async function syncHealthData() {
 // Handle push notifications if any
 self.addEventListener('push', (event: any) => {
   const data = event.data?.json() ?? {};
-  const title = data.title || 'MedGenie Alert';
+  const title = data.title || 'NexTwin Alert';
   const options = {
     body: data.body || 'New health insight detected.',
     icon: '/icons/icon-192x192.png',

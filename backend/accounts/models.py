@@ -17,6 +17,8 @@ class User(AbstractUser):
     wallet_address = models.CharField(max_length=42, blank=True, null=True, help_text='Polygon wallet')
     language_pref = models.CharField(max_length=10, default='en')
     phone_number = models.CharField(max_length=20, blank=True, null=True)
+    avatar_url = models.CharField(max_length=500, blank=True, default='')
+    avatar_public_id = models.CharField(max_length=255, blank=True, default='')
     
     class Meta:
         db_table = 'users'

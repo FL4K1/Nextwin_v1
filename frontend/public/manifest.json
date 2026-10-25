@@ -1,6 +1,6 @@
 {
-  "name": "MedGenie Digital Twin",
-  "short_name": "MedGenie",
+  "name": "NexTwin Digital Twin",
+  "short_name": "NexTwin",
   "description": "Privacy-first Decentralized Healthcare Platform",
   "start_url": "/",
   "display": "standalone",

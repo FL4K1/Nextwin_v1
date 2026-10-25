@@ -7,7 +7,7 @@ import { User, Lock, Activity, ArrowRight, ShieldCheck, AlertCircle } from "luci
 import Link from "next/link";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const { login, loading } = useAuth();
@@ -16,7 +16,8 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
     try {
-      await login({ email, password });
+      const cleanId = identifier.trim();
+      await login({ email: cleanId, username: cleanId, password });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Invalid credentials. Please try again.";
       setError(message);
@@ -41,7 +42,7 @@ export default function LoginPage() {
               <Activity className="w-8 h-8 text-white animate-pulse" />
             </div>
             <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
-              Welcome to MedGenie
+              Welcome to NexTwin
             </h1>
             <p className="text-gray-400 mt-2">Access your digital twin healthcare portal</p>
           </div>
@@ -67,11 +68,11 @@ export default function LoginPage() {
                   <User size={18} />
                 </div>
                 <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  type="text"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
                   className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all placeholder:text-gray-600"
-                  placeholder="Email address"
+                  placeholder="Email address or username"
                   required
                 />
               </div>

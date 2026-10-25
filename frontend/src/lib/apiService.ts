@@ -1,153 +1,125 @@
+import { authAPI, getToken, clearToken, setTokens } from "./api";
+
 // API base URL from environment
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
-// Helper function to handle API responses
-const handleResponse = async (response: Response) => {
+// Helper function to handle API responses with JWT token
+const authFetch = async (url: string, options: RequestInit = {}) => {
+  const token = getToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options.headers as Record<string, string>),
+  };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(url, {
+    ...options,
+    headers,
+  });
+
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.detail || response.statusText || "An error occurred");
+    throw new Error(errorData.detail || errorData.message || response.statusText || "An error occurred");
   }
   return response.json();
 };
 
-// Auth API functions - mimicking Supabase interface
+// Auth API functions — unified with Django SimpleJWT
 export const apiAuth = {
-  signUp: async (email: string, password: string, options: { data: { username: string; first_name?: string; last_name?: string; role?: string } }) => {
-    const { username, first_name, last_name, role } = options.data;
-    const response = await fetch(`${API_URL}/auth/register/`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ email, password, username, first_name, last_name, role }),
-    });
-    const data = await handleResponse(response);
-    // Return in Supabase format: { data, error }
-    return { data, error: null };
+  signUp: async (
+    email: string,
+    password: string,
+    options: { data: { username: string; first_name?: string; last_name?: string; role?: string } }
+  ) => {
+    try {
+      const { username, first_name, last_name, role } = options.data;
+      const res = await authAPI.register({
+        username,
+        email,
+        password,
+        role,
+        full_name: [first_name, last_name].filter(Boolean).join(" "),
+      });
+      return { data: res, error: null };
+    } catch (err: unknown) {
+      return { data: null, error: err instanceof Error ? err.message : String(err) };
+    }
   },
 
   signIn: async (email: string, password: string) => {
-    const response = await fetch(`${API_URL}/auth/login/`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ email, password }),
-    });
-    const data = await handleResponse(response);
-    // Return in Supabase format: { data, error }
-    return { data, error: null };
+    try {
+      const res = await authAPI.login({ email, username: email, password });
+      return { data: res, error: null };
+    } catch (err: unknown) {
+      return { data: null, error: err instanceof Error ? err.message : String(err) };
+    }
   },
 
   signOut: async () => {
-    const response = await fetch(`${API_URL}/auth/logout/`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-    const data = await handleResponse(response);
-    // Return in Supabase format: { data, error }
-    return { data, error: null };
+    clearToken();
+    return { data: null, error: null };
   },
 
   getSession: async () => {
-    const response = await fetch(`${API_URL}/auth/me/`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      credentials: "include",
-    });
-    const data = await handleResponse(response);
-    // Return in Supabase format: { data: { session } }
-    return { data: { session: data } };
+    try {
+      const profile = await authAPI.getProfile();
+      return { data: { session: { user: profile } } };
+    } catch {
+      return { data: { session: null } };
+    }
   },
 
   getUser: async () => {
-    const response = await fetch(`${API_URL}/auth/me/`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      credentials: "include",
-    });
-    const data = await handleResponse(response);
-    // Return in Supabase format: { data: { user } }
-    return { data: { user: data } };
+    try {
+      const profile = await authAPI.getProfile();
+      return { data: { user: profile } };
+    } catch {
+      return { data: { user: null } };
+    }
   },
 
-  // Note: onAuthStateChange would require websockets or polling, 
-  // which is more complex to implement. For now, we'll leave it as a stub
-  // that doesn't actually subscribe to changes.
-  onAuthStateChange: (cb: any) => {
-    // This is a simplified implementation - in a real app, you'd use
-    // websockets or polling to detect auth state changes
-    return {
-      unsubscribe: () => {},
-    };
-  },
+  onAuthStateChange: () => ({
+    unsubscribe: () => {},
+  }),
 };
 
-// Profile API functions - mimicking Supabase interface
+// Profile API functions
 export const apiProfiles = {
   get: async (id: string) => {
-    // Try to get patient profile first
-    let response = await fetch(`${API_URL}/auth/patient/profile/`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      credentials: "include",
-    });
-
-    let data;
-    if (response.ok) {
-      data = await handleResponse(response);
-    } else {
-      // If not patient, try doctor profile
-      response = await fetch(`${API_URL}/auth/doctor/profile/`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-      });
-      data = await handleResponse(response);
+    try {
+      // Try patient profile first
+      try {
+        const data = await authFetch(`${API_URL}/auth/patient/profile/`);
+        return { data };
+      } catch {
+        // Fallback to doctor profile
+        const data = await authFetch(`${API_URL}/auth/doctor/profile/`);
+        return { data };
+      }
+    } catch {
+      return { data: null };
     }
-
-    // Return in Supabase format: { data }
-    return { data };
   },
 
   update: async (id: string, data: Record<string, unknown>) => {
-    // Try to update patient profile first
-    let response = await fetch(`${API_URL}/auth/patient/profile/`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      credentials: "include",
-      body: JSON.stringify(data),
-    });
-
-    let resultData;
-    if (response.ok) {
-      resultData = await handleResponse(response);
-    } else {
-      // If patient update fails, try doctor profile
-      response = await fetch(`${API_URL}/auth/doctor/profile/`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify(data),
-      });
-      resultData = await handleResponse(response);
+    try {
+      try {
+        const res = await authFetch(`${API_URL}/auth/patient/profile/`, {
+          method: "PATCH",
+          body: JSON.stringify(data),
+        });
+        return { data: res };
+      } catch {
+        const res = await authFetch(`${API_URL}/auth/doctor/profile/`, {
+          method: "PATCH",
+          body: JSON.stringify(data),
+        });
+        return { data: res };
+      }
+    } catch (err: unknown) {
+      return { data: null, error: err instanceof Error ? err.message : String(err) };
     }
-
-    // Return in Supabase format: { data }
-    return { data: resultData };
   },
 };

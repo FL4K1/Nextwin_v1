@@ -16,7 +16,7 @@ export interface HealthLog {
   synced: boolean;
 }
 
-interface MedGenieDB extends DBSchema {
+interface NexTwinDB extends DBSchema {
   vitals: {
     key: string;
     value: {
@@ -53,11 +53,11 @@ interface MedGenieDB extends DBSchema {
   };
 }
 
-let dbPromise: Promise<IDBPDatabase<MedGenieDB>>;
+let dbPromise: Promise<IDBPDatabase<NexTwinDB>>;
 
 export const getDB = () => {
   if (!dbPromise) {
-    dbPromise = openDB<MedGenieDB>('medgenie-db', 2, {
+    dbPromise = openDB<NexTwinDB>('nexttwin-db', 2, {
       upgrade(db) {
         if (!db.objectStoreNames.contains('vitals')) {
           const vitalsStore = db.createObjectStore('vitals', { keyPath: 'id' });

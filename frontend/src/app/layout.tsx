@@ -7,7 +7,7 @@ import { RealtimeProvider } from "@/lib/realtime";
 // Standard system font stack used in globals.css
 
 export const metadata: Metadata = {
-  title: "MedGenie | Digital Twin Healthcare Platform",
+  title: "NexTwin | Digital Twin Healthcare Platform",
   description: "AI-powered decentralized healthcare intelligence system with real-time digital twin monitoring, predictive analytics, and secure doctor consultations.",
   keywords: "healthcare, digital twin, AI, telemedicine, wearable data, Web3",
 };

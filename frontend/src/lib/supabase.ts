@@ -7,9 +7,9 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    storageKey: "medgenie_session",
+    storageKey: "nexttwin_session",
   },
-  db: { schema: "medgenie" },
+  db: { schema: "nexttwin" },
 });
 
 // ─── Auth helpers ────────────────────────────────────────────
