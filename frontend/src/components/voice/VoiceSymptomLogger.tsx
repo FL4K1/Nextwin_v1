@@ -44,7 +44,7 @@ export function VoiceSymptomLogger({ onInsightLogged }: VoiceSymptomLoggerProps)
     }
 
     try {
-      const response = await api.post<VoiceInsight>("/voice-log", { text });
+      const response = await api.post<VoiceInsight>("/voice-log/", { text });
       setLastInsight(response);
       if (onInsightLoggedRef.current) onInsightLoggedRef.current(response);
       

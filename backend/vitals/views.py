@@ -101,12 +101,40 @@ class DigitalTwinSimulateView(APIView):
 
 
 class VoiceLogView(APIView):
-    """Accept voice symptom log and return acknowledgment."""
+    """Accept voice symptom log, forward to AI engine for structured insights, or use heuristic."""
+    permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
         text = request.data.get('text', '')
-        # For MVP: just acknowledge the log
-        return Response({'status': 'logged', 'text': text, 'acknowledged': True})
+        try:
+            token = getattr(settings, 'AI_ENGINE_INTERNAL_TOKEN', '')
+            headers = {'X-Internal-Token': token} if token else {}
+            response = httpx.post(
+                f"{settings.AI_ENGINE_URL}/voice-log",
+                json={
+                    'patient_id': str(request.user.id),
+                    'data': {'text': text},
+                    'text': text,
+                },
+                headers=headers,
+                timeout=15,
+            )
+            if response.status_code == 200:
+                data = response.json()
+                data['acknowledged'] = True
+                return Response(data)
+        except Exception:
+            pass
+
+        symptoms = [s.strip() for s in text.replace(',', ' and ').split(' and ') if s.strip()] if text else ['Voice symptom recorded']
+        return Response({
+            'status': 'logged',
+            'text': text,
+            'acknowledged': True,
+            'extracted_symptoms': symptoms[:3],
+            'severity': 'mild',
+            'recommended_specialist': 'General Physician'
+        })
 
 
 class GoogleFitConnectView(APIView):

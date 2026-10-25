@@ -105,8 +105,12 @@ if database_url.startswith('sqlite:///'):
         }
     }
 elif database_url.startswith(('postgres://', 'postgresql://')):
-    from urllib.parse import urlparse
+    from urllib.parse import urlparse, parse_qs
     parsed = urlparse(database_url)
+    db_options = {}
+    query_params = parse_qs(parsed.query)
+    if 'sslmode' in query_params:
+        db_options['sslmode'] = query_params['sslmode'][0]
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
@@ -115,6 +119,7 @@ elif database_url.startswith(('postgres://', 'postgresql://')):
             'PASSWORD': parsed.password or '',
             'HOST': parsed.hostname or '',
             'PORT': parsed.port or 5432,
+            'OPTIONS': db_options,
         }
     }
 else:
@@ -159,7 +164,7 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
-# CORS
+# CORS & CSRF
 CORS_ALLOW_ALL_ORIGINS = DEBUG
 cors_allowed_env = os.getenv('CORS_ALLOWED_ORIGINS', '')
 if cors_allowed_env:
@@ -168,6 +173,22 @@ else:
     CORS_ALLOWED_ORIGINS = [
         'http://localhost:3000',
         'http://127.0.0.1:3000',
+    ]
+
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r'^https://.*\.vercel\.app$',
+    r'^https://.*\.onrender\.com$',
+]
+
+csrf_trusted_env = os.getenv('CSRF_TRUSTED_ORIGINS', '')
+if csrf_trusted_env:
+    CSRF_TRUSTED_ORIGINS = [o.strip() for o in csrf_trusted_env.split(',') if o.strip()]
+else:
+    CSRF_TRUSTED_ORIGINS = [
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+        'https://*.vercel.app',
+        'https://*.onrender.com',
     ]
 
 # Static files
@@ -186,6 +207,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # External Services
 AI_ENGINE_URL = os.getenv('AI_ENGINE_URL', 'http://localhost:8100')
+AI_ENGINE_INTERNAL_TOKEN = os.getenv('AI_ENGINE_INTERNAL_TOKEN', '')
 GOOGLE_FIT_CLIENT_ID = os.getenv('GOOGLE_FIT_CLIENT_ID', '')
 GOOGLE_FIT_CLIENT_SECRET = os.getenv('GOOGLE_FIT_CLIENT_SECRET', '')
 GOOGLE_FIT_REDIRECT_URI = os.getenv('GOOGLE_FIT_REDIRECT_URI', 'http://localhost:8000/api/googlefit/callback')

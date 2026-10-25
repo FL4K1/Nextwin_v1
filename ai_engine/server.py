@@ -2,11 +2,13 @@
 IDF-aligned: GNN, Transformer, Causal AI, Behavioral, Geospatial, Federated Learning, Similarity.
 """
 
+import os
 import logging
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 import uvicorn
 
 from config import settings
@@ -27,23 +29,46 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+INTERNAL_SECRET = os.getenv("AI_ENGINE_SECRET_KEY", "")
+
+@app.middleware("http")
+async def verify_internal_secret(request: Request, call_next):
+    # Allow health checks and OpenAPI docs without token
+    if request.url.path in ["/", "/health", "/docs", "/openapi.json"]:
+        return await call_next(request)
+    if INTERNAL_SECRET:
+        token = request.headers.get("X-Internal-Token")
+        if token != INTERNAL_SECRET:
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Unauthorized: Invalid or missing X-Internal-Token"}
+            )
+    return await call_next(request)
+
 
 # === Request Models ===
 
 class PredictionRequest(BaseModel):
-    patient_id: str
+    patient_id: Optional[str] = "default-patient"
     data: Optional[dict] = None
+    vitals: Optional[List[dict]] = None
+    transcript: Optional[str] = None
+    text: Optional[str] = None
 
 class RiskScoreRequest(BaseModel):
-    patient_id: str
+    patient_id: Optional[str] = "default-patient"
 
 class SimulationRequest(BaseModel):
-    patient_id: str
-    scenario: dict
+    patient_id: Optional[str] = "default-patient"
+    scenario: Optional[dict] = None
+    parameter: Optional[str] = None
+    change: Optional[float] = None
+    duration_days: Optional[int] = None
 
 class AnomalyRequest(BaseModel):
-    patient_id: str
+    patient_id: Optional[str] = "default-patient"
     data: Optional[dict] = None
+    vitals: Optional[List[dict]] = None
 
 class SimilarityRequest(BaseModel):
     patient_id: str
@@ -85,8 +110,9 @@ async def predict(request: PredictionRequest):
     """Full neural prediction pipeline — GNN + Transformer ensemble."""
     from models.digital_twin import DigitalTwin
     try:
-        twin = DigitalTwin(request.patient_id)
-        vitals = request.data.get('vitals', []) if request.data else []
+        pid = request.patient_id or "default-patient"
+        twin = DigitalTwin(pid)
+        vitals = request.vitals or (request.data.get('vitals', []) if request.data else [])
         state = twin.update(vitals)
         return {
             'patient_id': request.patient_id,
@@ -101,12 +127,23 @@ async def predict(request: PredictionRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/risk-score/{patient_id}")
+async def risk_score_get(patient_id: str):
+    """Multi-dimensional risk scoring via GET."""
+    from pipelines.risk_scoring import calculate_risk_scores
+    try:
+        return calculate_risk_scores(patient_id)
+    except Exception as e:
+        logger.error(f"Risk score error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/risk-score")
 async def risk_score(request: RiskScoreRequest):
     """Multi-dimensional risk scoring via Digital Twin state."""
     from pipelines.risk_scoring import calculate_risk_scores
     try:
-        result = calculate_risk_scores(request.patient_id)
+        pid = request.patient_id or "default-patient"
+        result = calculate_risk_scores(pid)
         return result
     except Exception as e:
         logger.error(f"Risk score error: {e}")
@@ -118,7 +155,15 @@ async def simulate_scenario(request: SimulationRequest):
     """What-If causal simulation — IDF Step 6."""
     from pipelines.simulation import run_simulation
     try:
-        result = run_simulation(request.patient_id, request.scenario)
+        pid = request.patient_id or "default-patient"
+        scenario = request.scenario or {}
+        if not scenario and request.parameter:
+            scenario = {
+                'parameter': request.parameter,
+                'change': request.change or 0.0,
+                'duration_days': request.duration_days or 30
+            }
+        result = run_simulation(pid, scenario)
         return result
     except Exception as e:
         logger.error(f"Simulation error: {e}")
@@ -146,7 +191,7 @@ async def scribe(request: PredictionRequest):
     """AI clinical scribe — consultation transcript → structured summary."""
     from pipelines.scribe import generate_clinical_summary
     try:
-        transcript = (request.data or {}).get("transcript", "")
+        transcript = request.transcript or (request.data or {}).get("transcript", "")
         return generate_clinical_summary(transcript)
     except Exception as e:
         logger.error(f"Scribe error: {e}")
@@ -158,7 +203,7 @@ async def voice_log(request: PredictionRequest):
     """Real-time voice symptom extraction."""
     from pipelines.scribe import extract_voice_symptoms
     try:
-        text = (request.data or {}).get("text", "")
+        text = request.text or (request.data or {}).get("text", "")
         return extract_voice_symptoms(text)
     except Exception as e:
         logger.error(f"Voice log error: {e}")

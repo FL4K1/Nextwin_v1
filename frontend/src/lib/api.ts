@@ -455,19 +455,18 @@ export interface SimulationResult {
 
 export const aiAPI = {
   predict: (vitalsData: Record<string, number>[]) =>
-    apiFetch<PredictionResult>("/predict", { method: "POST", body: JSON.stringify({ vitals: vitalsData }) }, AI_BASE),
+    apiFetch<PredictionResult>("/ai/predict/", { method: "POST", body: JSON.stringify({ vitals: vitalsData }) }),
 
-  riskScore: (patientId: string) =>
-    apiFetch<{ risk_scores: Record<string, number> }>(`/risk-score/${patientId}`, {}, AI_BASE),
+  riskScore: (patientId?: string) =>
+    apiFetch<{ risk_scores: Record<string, number> }>("/ai/risk-score/", { method: "POST" }),
 
   simulate: (scenario: { parameter: string; change: number; duration_days: number }) =>
-    apiFetch<SimulationResult>("/simulate", { method: "POST", body: JSON.stringify(scenario) }, AI_BASE),
+    apiFetch<SimulationResult>("/patients/twin/simulate/", { method: "POST", body: JSON.stringify(scenario) }),
 
   detectAnomalies: (vitals: Record<string, number>[]) =>
     apiFetch<{ anomalies: Array<{ metric: string; severity: string }> }>(
-      "/detect-anomalies",
-      { method: "POST", body: JSON.stringify({ vitals }) },
-      AI_BASE
+      "/ai/predict/",
+      { method: "POST", body: JSON.stringify({ vitals }) }
     ),
 };
 
@@ -622,10 +621,10 @@ export const federatedAPI = {
 };
 
 export const api = {
-  get: <T>(url: string, base = AI_BASE) => apiFetch<T>(url, { method: "GET" }, base),
-  post: <T>(url: string, body: unknown, base = AI_BASE) =>
+  get: <T>(url: string, base = API_BASE) => apiFetch<T>(url, { method: "GET" }, base),
+  post: <T>(url: string, body: unknown, base = API_BASE) =>
     apiFetch<T>(url, { method: "POST", body: JSON.stringify(body) }, base),
-  put: <T>(url: string, body: unknown, base = AI_BASE) =>
+  put: <T>(url: string, body: unknown, base = API_BASE) =>
     apiFetch<T>(url, { method: "PUT", body: JSON.stringify(body) }, base),
-  delete: <T>(url: string, base = AI_BASE) => apiFetch<T>(url, { method: "DELETE" }, base),
+  delete: <T>(url: string, base = API_BASE) => apiFetch<T>(url, { method: "DELETE" }, base),
 };

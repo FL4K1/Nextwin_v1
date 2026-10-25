@@ -7,6 +7,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+def _get_ai_headers():
+    token = getattr(settings, 'AI_ENGINE_INTERNAL_TOKEN', '')
+    return {'X-Internal-Token': token} if token else {}
+
 
 class GeospatialAnalysisView(APIView):
     """POST lat/lng → environmental risk + nearby facilities + emergency routing."""
@@ -28,9 +32,10 @@ class GeospatialAnalysisView(APIView):
                     'risk_scores': request.data.get('risk_scores', {}),
                 },
                 timeout=15,
+                headers=_get_ai_headers(),
             )
             return Response(response.json())
-        except httpx.ConnectError:
+        except Exception:
             # Fallback mock when AI engine offline
             return Response({
                 'patient_id': str(request.user.id),
@@ -61,9 +66,10 @@ class BehavioralAnalysisView(APIView):
                     'activity_minutes': request.data.get('activity_minutes', 30.0),
                 },
                 timeout=15,
+                headers=_get_ai_headers(),
             )
             return Response(response.json())
-        except httpx.ConnectError:
+        except Exception:
             return Response({
                 'patient_id': str(request.user.id),
                 'stress_index': 0.28,
@@ -89,9 +95,10 @@ class PatientSimilarityView(APIView):
                     'top_k': request.data.get('top_k', 3),
                 },
                 timeout=15,
+                headers=_get_ai_headers(),
             )
             return Response(response.json())
-        except httpx.ConnectError:
+        except Exception:
             return Response({
                 'patient_id': str(request.user.id),
                 'similar_patients': [
@@ -109,7 +116,7 @@ class FederatedStatusView(APIView):
         try:
             response = httpx.get(f"{settings.AI_ENGINE_URL}/federated/status", timeout=10)
             return Response(response.json())
-        except httpx.ConnectError:
+        except Exception:
             return Response({
                 'rounds_completed': 0,
                 'active_participants': 0,

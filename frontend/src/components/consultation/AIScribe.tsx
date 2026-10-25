@@ -20,7 +20,7 @@ export function AIScribe({ transcript, onSave }: AIScribeProps) {
     if (!transcript.trim()) return;
     setIsProcessing(true);
     try {
-      const response = await api.post<AISummary>("/scribe", { transcript });
+      const response = await api.post<AISummary>("/ai/scribe/", { transcript });
       setSummary(response);
     } catch (error) {
       console.error("Scribing failed", error);
